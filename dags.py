@@ -1,14 +1,14 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 import pandas as pd
 import os
 from io import StringIO
-
+#новое
 default_args = {
-    'owner': 'Admin',
-    'start_date': datetime(2024, 7, 25)
+    'owner': 'Lera',
+    'start_date': datetime(2024, 7, 25),
 }
 
 def fetch_new_clients():
@@ -25,7 +25,6 @@ def fetch_new_clients():
      
     return df
 
-
 def insert_into_database(**kwargs):
     ti = kwargs['ti']
     df = ti.xcom_pull(task_ids='fetch_new_clients')
@@ -35,49 +34,43 @@ def insert_into_database(**kwargs):
 
     # Переименовываем колонки
     df = df.rename(columns={
-        'Date': 'date', 'CustomerId': 'customer_id', 'Surname': 'surname', 
-        'CreditScore': 'credit_score', 'Geography': 'geography', 'Gender': 'gender',
+        'Date': 'date', 'CustomerId': 'customerid', 'Surname': 'surname', 
+        'CreditScore': 'creditscore', 'Geography': 'geography', 'Gender': 'gender',
         'Age': 'age', 'Tenure': 'tenure', 'Balance': 'balance', 
-        'NumOfProducts': 'num_of_products', 'HasCrCard': 'has_cr_card',
-        'IsActiveMember': 'is_active_member', 'EstimatedSalary': 'estimated_salary', 
+        'NumOfProducts': 'numofproducts', 'HasCrCard': 'hascrcard',
+        'IsActiveMember': 'isactivemember', 'EstimatedSalary': 'estimatedsalary', 
         'Exited': 'exited'
     })
 
-
-    # Преобразование значений в логический тип
-    df['has_cr_card'] = df['has_cr_card'].astype(bool)
-    df['is_active_member'] = df['is_active_member'].astype(bool)
-    df['exited'] = df['exited'].astype(bool)
-
-    pg_hook = PostgresHook(postgres_conn_id='psql')
+    pg_hook = PostgresHook(postgres_conn_id='credit')
     connection = pg_hook.get_conn()
     cursor = connection.cursor()
 
     insert_query = """
-    INSERT INTO credit_clients (date, customer_id, surname, credit_score, geography, gender, age, tenure, balance, num_of_products, has_cr_card, is_active_member, estimated_salary, exited) 
+    INSERT INTO credit_clients (date, customerid, surname, creditscore, geography, gender, age, tenure, balance, numofproducts, hascrcard, isactivemember, estimatedsalary, exited) 
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    ON CONFLICT (customer_id) 
+    ON CONFLICT (customerid) 
     DO UPDATE SET
         date = EXCLUDED.date,
         surname = EXCLUDED.surname,
-        credit_score = EXCLUDED.credit_score,
+        creditscore = EXCLUDED.creditscore,
         geography = EXCLUDED.geography,
         gender = EXCLUDED.gender,
         age = EXCLUDED.age,
         tenure = EXCLUDED.tenure,
         balance = EXCLUDED.balance,
-        num_of_products = EXCLUDED.num_of_products,
-        has_cr_card = EXCLUDED.has_cr_card,
-        is_active_member = EXCLUDED.is_active_member,
-        estimated_salary = EXCLUDED.estimated_salary,
+        numofproducts = EXCLUDED.numofproducts,
+        hascrcard = EXCLUDED.hascrcard,
+        isactivemember = EXCLUDED.isactivemember,
+        estimatedsalary = EXCLUDED.estimatedsalary,
         exited = EXCLUDED.exited;
     """
     
     for index, row in df.iterrows():
         record = (
-            row['date'], row['customer_id'], row['surname'], row['credit_score'], row['geography'],
-            row['gender'], row['age'], row['tenure'], row['balance'], row['num_of_products'],
-            row['has_cr_card'], row['is_active_member'], row['estimated_salary'], row['exited']
+            row['date'], row['customerid'], row['surname'], row['creditscore'], row['geography'],
+            row['gender'], row['age'], row['tenure'], row['balance'], row['numofproducts'],
+            row['hascrcard'], row['isactivemember'], row['estimatedsalary'], row['exited']
         )
         
         cursor.execute(insert_query, record)
@@ -86,9 +79,7 @@ def insert_into_database(**kwargs):
     cursor.close()
     connection.close()
 
-
-
-with DAG('daily_clients_data_update', default_args=default_args, schedule_interval='@daily', catchup=False) as dag:
+with DAG('lera_daily_clients_data_update', default_args=default_args, schedule_interval='@daily', catchup=False) as dag:
     fetch_new_clients_task = PythonOperator(
         task_id='fetch_new_clients',
         python_callable=fetch_new_clients,
@@ -102,4 +93,5 @@ with DAG('daily_clients_data_update', default_args=default_args, schedule_interv
         dag=dag,
     )
 
-fetch_new_clients_task >> insert_into_database_task 
+fetch_new_clients_task >> insert_into_database_task
+
