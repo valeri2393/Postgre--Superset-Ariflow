@@ -1,0 +1,223 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Инструкция по подключению PostgreSQL и Apache Superset"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "2. Устанавливаем Docker в соответствии со Step 1 из <https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-22-04>"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "3. Создаем хранилище (volume) для контейнера с БД:\n",
+    "\n",
+    "> docker volume create postgres_1_vol"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "4. Запускаем контейнер с PostgresDB:\n",
+    "\n",
+    "\n",
+    "> docker run -d \\\n",
+    "    --name postgres_1 \\\n",
+    "    -e POSTGRES_USER=postgres \\\n",
+    "    -e POSTGRES_PASSWORD='123' \\\n",
+    "    -e POSTGRES_DB=test_app \\\n",
+    "    -v postgres_1_vol:/var/lib/postgresql \\\n",
+    "    postgres:15\n",
+    "\n",
+    "    \n",
+    "POSTGRES_USER, POSTGRES_PASSWORD нужно запомнить – они понадобятся для подключения."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "5. Запускаем контейнер Superset:\n",
+    "\n",
+    "> docker run --rm -d \\\n",
+    "    -p 8080:8088 \\\n",
+    "    -e \"SUPERSET_SECRET_KEY=$(openssl rand -base64 42)\" \\\n",
+    "    --name superset \\\n",
+    "    apache/superset"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "6. Последовательно запускаем команды для настройки Superset: создание пользователя, обновление внутренней базы, инициализация сервиса:\n",
+    "\n",
+    "> docker exec -it superset superset fab create-admin \\\n",
+    "            --username admin \\\n",
+    "            --firstname Superset \\\n",
+    "            --lastname Admin \\\n",
+    "            --email admin@superset.com \\\n",
+    "            --password admin\n",
+    "\n",
+    "            \n",
+    "username, password понадобятся для авторизации в Superset."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Обновляем внутреннюю БД Superset:\n",
+    "\n",
+    "> docker exec -it superset superset db upgrade\n",
+    "\n",
+    "\n",
+    "Запускаем сервер Superset:\n",
+    "\n",
+    "> docker exec -it superset superset init"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "7. Подключаем контейнеры в созданную сеть:\n",
+    "\n",
+    "> docker network connect <имя вашей сети> <имя контейнера postgres>\n",
+    "docker network connect <имя вашей сети> <имя контейнера superset>"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "8. Добавление БД в контейнер с Postgres. Есть два способа:"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "8.1 Зайти в контейнер, скачать, распаковать и добавить в Postgres базу прямо там. Заходим в контейнер и запускаем bash внутри:\n",
+    "\n",
+    "> docker exec -it <your_postgres_container_name> bash "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Переходим в нужную папку (как на прошлой неделе):\n",
+    "\n",
+    "> cd /var/lib/postgresql/"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Обновляем и устанавливаем пакеты:\n",
+    "\n",
+    "> apt-get update\n",
+    "\n",
+    "> apt-get install -y wget  "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Скачиваем базу:\n",
+    "\n",
+    "> wget https://9c579ca6-fee2-41d7-9396-601da1103a3b.selstorage.ru/credit_clients.csv\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Переключаемся на пользователя postgres и создаем таблицу для базы:\n",
+    "\n",
+    "> su postgres"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "CREATE TABLE customer_data (\n",
+    "Date DATE,\n",
+    "CustomerId INTEGER,\n",
+    "Surname TEXT,\n",
+    "CreditScore INTEGER,\n",
+    "Geography TEXT,\n",
+    "Gender TEXT,\n",
+    "Age INTEGER,\n",
+    "Tenure INTEGER,\n",
+    "Balance FLOAT,\n",
+    "NumOfProducts INTEGER,\n",
+    "HasCrCard INTEGER,\n",
+    "IsActiveMember INTEGER,\n",
+    "EstimatedSalary FLOAT,\n",
+    "Exited INTEGER);"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Добавляем данные в таблицу\n",
+    "\n",
+    "> \\copy customer_data FROM 'credit_clients.csv' DELIMITER ',' CSV HEADER;"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "9. В локальном терминале прокидываем соединение:\n",
+    "\n",
+    "> ssh -L  8080:localhost:8080 <user_name>@<ip-address>\n",
+    "\n",
+    "\n",
+    "В браузере переходим по адресу: http://localhost:8080/login/"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "10. После входа на сайте Superset в правом вернем углу нажимаем на \"+\" -> DataBase+ и подключаем нашу базу данных"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "vscode": {
+     "languageId": "plaintext"
+    }
+   },
+   "source": [
+    "11. После подключения создаем датасет посредством SQL Lab запроса и выводим нужные нам таблицы"
+   ]
+  }
+ ],
+ "metadata": {
+  "language_info": {
+   "name": "python"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
