@@ -8,7 +8,7 @@ from io import StringIO
 
 default_args = {
     'owner': 'Admin',
-    'start_date': datetime(2024, 6, 20)
+    'start_date': datetime(2024, 7, 25)
 }
 
 def fetch_new_clients():
